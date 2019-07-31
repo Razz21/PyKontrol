@@ -31,10 +31,12 @@ class PadKontrolPrint(pk.PadKontrolInput):
 
     def on_pad_down(self, pad, velocity):
         send_sysex(pk.light(pad, pk.LIGHT_STATE_ON))
+
         print("pad #%d down, velocity %d/127" % (pad, velocity))
 
     def on_pad_up(self, pad):
         send_sysex(pk.light(pad, pk.LIGHT_STATE_OFF))
+       
         print("pad #%d up" % pad)
 
     def on_button_down(self, button):
@@ -162,8 +164,8 @@ async def sequence(clock=pk_print.main_value, steps=16):
 # asyncio.run(seq())
 
 
-async def midi_in_callback(message, data):
-    loop = asyncio.ensure_future(sequence())
+def midi_in_callback(message, data):
+
     sysex_buffer = []
     for byte in message[0]:
         sysex_buffer.append(byte)
@@ -171,14 +173,27 @@ async def midi_in_callback(message, data):
         if byte == 0xF7:
             pk_print.process_sysex(sysex_buffer)
             del sysex_buffer[:]  # empty list
-        asyncio.ensure_future(sequence())
+        # asyncio.ensure_future(sequence())
 
 
 midi_in.ignore_types(False, False, False)
 # midi_in.set_callback(midi_in_callback)
 
-# asyncio.run(midi_in.set_callback(midi_in_callback))
-asyncio.get_event_loop().run_until_complete(midi_in.set_callback(midi_in_callback))
+async def get_midi_in():
+    x = midi_in.set_callback(midi_in_callback)
+    return x
+
+
+async def main():
+    count = loop.create_task(sequence())
+    buffer = loop.create_task(get_midi_in())
+    await asyncio.wait([count, buffer])
+    return count, buffer
+
+
+loop = asyncio.get_event_loop()
+c, b = loop.run_until_complete(main())
+loop.close()
 
 input("Press enter to exit")
 

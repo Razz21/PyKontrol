@@ -8,6 +8,7 @@ import asyncio
 from itertools import repeat
 import time
 
+from timer import Timer
 
 OUTPUT_MIDI_PORT = 2
 
@@ -26,17 +27,28 @@ def send_sysex(sysex):
     midi_out.send_message(sysex)
 
 
+# GLOBALS
+sequence = True
+active_pads = {}
+
+
 class PadKontrolPrint(pk.PadKontrolInput):
-    main_value = 100
+
+    main_clock = 100
 
     def on_pad_down(self, pad, velocity):
-        send_sysex(pk.light(pad, pk.LIGHT_STATE_ON))
-
+        global active_pads
+        current = active_pads.get(pad)
+        if current:
+            current = False
+        else:
+            current = True
+        active_pads[pad] = current
+        send_sysex(pk.light(pad, current))
         print("pad #%d down, velocity %d/127" % (pad, velocity))
 
     def on_pad_up(self, pad):
-        send_sysex(pk.light(pad, pk.LIGHT_STATE_OFF))
-       
+        # send_sysex(pk.light(pad, pk.LIGHT_STATE_OFF))
         print("pad #%d up" % pad)
 
     def on_button_down(self, button):
@@ -49,27 +61,31 @@ class PadKontrolPrint(pk.PadKontrolInput):
         if button == pk.BUTTON_MESSAGE:
             print("message button up")
         else:
+            global sequence
+            sequence = not sequence
             print("button #%d up" % button)
+            print("sequence", sequence)
 
     def on_knob(self, knob, value):
 
         print("knob #%d value = %d" % (knob, value))
 
     def on_rotary_left(self):
-        self.main_value -= 1
-        x = str(self.main_value).zfill(3)
+        self.main_clock -= 1
+        x = str(self.main_clock).zfill(3)
         val = pk.string_to_sysex(x)
         send_sysex(pk.led(val))
-        print("rotary turned left")
+        print("rotary turned left", self.main_clock)
 
     def on_rotary_right(self):
-        self.main_value += 1
-        x = str(self.main_value).zfill(3)
+        self.main_clock += 1
+        x = str(self.main_clock).zfill(3)
         val = pk.string_to_sysex(x)
         send_sysex(pk.led(val))
-        print("rotary turned right")
+        print("rotary turned right", self.main_clock)
 
     def on_x_y(self, x, y):
+
         print("x/y pad (x = %d, y = %d)" % (x, y))
 
 
@@ -149,23 +165,36 @@ midi_in, _ = open_midiinput(
 
 pk_print = PadKontrolPrint()
 
+midiout = rtmidi.MidiOut()
+available_ports = midiout.get_ports()
 
-async def sequence(clock=pk_print.main_value, steps=16):
-    while True:
+if available_ports:
+    midiout.open_port(5)
+else:
+    midiout.open_virtual_port("My virtual output")
+
+
+
+async def sequence(steps=16):
+    while sequence:
         for x in range(steps):
-            send_sysex(pk.light_flash(x, 0.1))
-            await asyncio.sleep(60 / clock)
+            active = active_pads.get(x)
+            if active:
+                midiout.send_message([0x90, 60, 112])
+                await asyncio.sleep(0.05)
+                midiout.send_message([0x80, 60, 0])
+            send_sysex(pk.light_flash(x, 0.05))
+            time.sleep(60 / pk_print.main_clock / 4)
 
 
 # async def seq():
-#     await sequence(clock=pk_print.main_value)
+#     await sequence(clock=pk_print.main_clock)
 
 
 # asyncio.run(seq())
 
 
 def midi_in_callback(message, data):
-
     sysex_buffer = []
     for byte in message[0]:
         sysex_buffer.append(byte)
@@ -173,11 +202,11 @@ def midi_in_callback(message, data):
         if byte == 0xF7:
             pk_print.process_sysex(sysex_buffer)
             del sysex_buffer[:]  # empty list
-        # asyncio.ensure_future(sequence())
 
 
 midi_in.ignore_types(False, False, False)
-# midi_in.set_callback(midi_in_callback)
+midi_in.set_callback(midi_in_callback)
+
 
 async def get_midi_in():
     x = midi_in.set_callback(midi_in_callback)
@@ -191,13 +220,23 @@ async def main():
     return count, buffer
 
 
-loop = asyncio.get_event_loop()
-c, b = loop.run_until_complete(main())
-loop.close()
+# loop = asyncio.get_event_loop()
+# c, b = loop.run_until_complete(main())
+# loop.close()
+asyncio.run(main())
 
-input("Press enter to exit")
+try:
+    input("Press enter to exit")
+except Exception as e:
+    pass
+finally:
+    send_sysex(pk.SYSEX_NATIVE_MODE_OFF)
 
-send_sysex(pk.SYSEX_NATIVE_MODE_OFF)
+    del midiout
+    midi_in.close_port()
+    midi_out.close_port()
 
-midi_in.close_port()
-midi_out.close_port()
+
+# todo
+# restart sequence
+# multi stages - channels

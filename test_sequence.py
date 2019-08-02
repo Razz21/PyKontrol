@@ -7,6 +7,16 @@ import asyncio
 from sequence import Sequencer
 import time
 import pkconstants as const
+from rtmidi.midiconstants import (
+    ALL_SOUND_OFF,
+    BANK_SELECT_LSB,
+    BANK_SELECT_MSB,
+    CHANNEL_VOLUME,
+    CONTROL_CHANGE,
+    NOTE_ON,
+    PROGRAM_CHANGE,
+)
+
 
 # from async_timer import Timer
 
@@ -184,18 +194,23 @@ channels_ON = dict(zip(channels, on))
 channels_OFF = dict(zip(channels, off))
 
 
-async def send_midi(channel):
-    signal_on = channels_ON.get(channel)
-    signal_off = channels_OFF.get(channel)
-    midiout.send_message([signal_on, 127, 127])
-    await asyncio.sleep(0.01)
-    midiout.send_message([signal_off, 127, 0])
+async def send_midi(note, channel, velocity):
+    # signal_on = channels_ON.get(channel)
+    # signal_off = channels_OFF.get(channel)
+    midiout.send_message([NOTE_ON | channel, note, velocity])
+    # midiout.send_message([signal_on, 127, 127])
+    # await asyncio.sleep(0.01)
+    # midiout.send_message([NOTE_ON | channel, note, 0])
+    # midiout.send_message([signal_off, 127, 0])
 
 
-async def send_to_channel(channel, pad):
+async def send_to_channel(channel, pad, note):
     c = seq.get_stage_or_create(channel)
     if pad in c.active_steps:
-        await send_midi(channel)
+        noteon = asyncio.create_task(send_midi(note, channel, velocity=100))
+        hold = asyncio.create_task(asyncio.sleep(0.01))
+        noteoff = asyncio.create_task(send_midi(note, channel, velocity=0))
+        result = await asyncio.gather([noteon, hold, noteoff])
     await asyncio.sleep(0)
 
 
@@ -207,8 +222,8 @@ async def sequence(steps=16):
 
             time_task = asyncio.create_task(asyncio.sleep(60 / pk_print.main_clock / 4))
 
-            send_task1 = asyncio.create_task(send_to_channel(1, x))  # channel1
-            send_task2 = asyncio.create_task(send_to_channel(2, x))  # channel2
+            send_task1 = asyncio.create_task(send_to_channel(1, x, 36))  # port 1
+            send_task2 = asyncio.create_task(send_to_channel(2, x, 38))  # port 2
             stats = [flash, time_task, send_task1, send_task2]
 
             resuls = await asyncio.gather(*stats)
@@ -281,6 +296,7 @@ async def coroutine2(s):
 #     await asyncio.wait([count, buffer])
 #     return count, buffer
 
+
 async def main():
     loop = asyncio.get_event_loop()
     s = Stoppable(sequence())
@@ -295,7 +311,7 @@ loop = asyncio.get_event_loop()
 try:
     loop.run_until_complete(main())
 
-except (asyncio.CancelledError, KeyboardInterrupt) as e :
+except (asyncio.CancelledError, KeyboardInterrupt) as e:
     print("")
 
 finally:

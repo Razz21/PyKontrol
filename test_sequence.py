@@ -69,8 +69,8 @@ class PadKontrolPrint(pk.PadKontrolInput):
         else:
             self.current_stage.add_steps(pad)
             current = True
-
         send_sysex(pk.light(pad, current))
+
         print("pad #%d down, velocity %d/127" % (pad, velocity))
 
     # def on_pad_down(self, pad, velocity):
@@ -97,9 +97,9 @@ class PadKontrolPrint(pk.PadKontrolInput):
                 self.current_stage = seq.get_stage_or_create(1)
                 self.lightning()
                 print("stage down")
-            # elif button == 24:
-            #     is_sequenced = not is_sequenced
-            #     print(is_sequenced)
+            elif button == 24:
+                is_sequenced = not is_sequenced
+                print(is_sequenced)
 
             print("button #%d down" % button)
 
@@ -200,8 +200,8 @@ async def send_to_channel(channel, pad):
 
 
 async def sequence(steps=16):
-    while is_sequenced:
-        stime = time.perf_counter()
+    while True:
+        # stime = time.perf_counter()
         for x in range(steps):
             flash = asyncio.create_task(send_sysex_async(pk.light_flash(x, 0.05)))
 
@@ -209,24 +209,85 @@ async def sequence(steps=16):
 
             send_task1 = asyncio.create_task(send_to_channel(1, x))  # channel1
             send_task2 = asyncio.create_task(send_to_channel(2, x))  # channel2
+            stats = [flash, time_task, send_task1, send_task2]
 
-            await send_task1
-            await send_task2
-            await flash
-            await time_task
+            resuls = await asyncio.gather(*stats)
+            # await send_task1
+            # await send_task2
+            # await flash
+            # await time_task
 
 
-async def get_midi_in():
-    x = midi_in.set_callback(midi_in_callback)
+async def mmm():
+    midi_in.set_callback(midi_in_callback)
     await asyncio.sleep(0)
-    return x
 
+
+async def monitor(evt):
+    while True:
+        if is_sequenced:
+            print("reset!")
+
+            evt.set()
+        await asyncio.sleep(1)
+
+
+async def get_midi_in(s):
+    midi_in.set_callback(midi_in_callback)
+    while True:
+        # await mmm()
+        if is_sequenced:
+            # print("restarting coroutine1")
+            s.start()
+        else:
+            # print("stopping coroutine1")
+            s.stop()
+        await asyncio.sleep(1)
+
+
+from utils import Stoppable
+
+
+async def coroutine2(s):
+    i = 0
+    while True:
+        i += 1
+        if i == 3:
+            print("stopping coroutine1")
+            s.stop()
+        elif i == 6:
+            input("restarting coroutine1, press ENTER")
+            s.start()
+        print("coroutine2: " + str(i))
+        await asyncio.sleep(2)
+
+
+# async def main():
+#     loop = asyncio.get_event_loop()
+#     reset_evt = asyncio.Event()
+#     loop.create_task(monitor(reset_evt))
+#     while True:
+#         workers = []
+#         workers.append(loop.create_task(sequence()))
+#         workers.append(loop.create_task(get_midi_in()))
+#         await reset_evt.wait()
+#         reset_evt.clear()
+#         for t in workers:
+#             t.cancel()
+
+# async def main():
+#     count = loop.create_task(sequence())
+#     buffer = loop.create_task(get_midi_in())
+#     await asyncio.wait([count, buffer])
+#     return count, buffer
 
 async def main():
-    count = loop.create_task(sequence())
-    buffer = loop.create_task(get_midi_in())
-    await asyncio.wait([count, buffer])
-    return count, buffer
+    loop = asyncio.get_event_loop()
+    s = Stoppable(sequence())
+    fut1 = asyncio.ensure_future(s)
+    # task2 = loop.create_task(coroutine2(s))
+    task2 = loop.create_task(get_midi_in(s))
+    done, pending = await asyncio.wait([fut1, task2], return_when=asyncio.ALL_COMPLETED)
 
 
 loop = asyncio.get_event_loop()
@@ -234,15 +295,14 @@ loop = asyncio.get_event_loop()
 try:
     loop.run_until_complete(main())
 
-except Exception as e:
-    # loop.close()
-    pass
+except (asyncio.CancelledError, KeyboardInterrupt) as e :
+    print("")
 
 finally:
     loop.run_until_complete(loop.shutdown_asyncgens())
     loop.close()
 
-    input("Press enter to exit")
+    # input("Press enter to exit")
 
     send_sysex(const.SYSEX_NATIVE_MODE_OFF)
 

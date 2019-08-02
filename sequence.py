@@ -16,11 +16,8 @@ class Stage:
     Stage class for available channels 1-16
     attributes:
       - specify independent steps
-      - switch between stages
+    
     """
-
-    __instances = {}
-    __limit = 16
 
     def __init__(self, channel: int, *args, **kwargs):
         self._channel = channel
@@ -29,28 +26,6 @@ class Stage:
 
     def __str__(self):
         return f"stage {self.channel}"
-
-    def __new__(cls, channel: int, *args, **kwargs):
-        if len(cls.__instances) > cls.__limit:
-            raise ValueError(f"Count not create instance. Limit {cls.__limit} reached")
-        if channel < 1 or channel > cls.__limit:
-            raise ValueError(
-                f"Count not create instance. Channel must be in range 1-{cls.__limit}"
-            )
-
-        obj = cls.__instances.get(channel, None)
-        if obj:
-            # copy __init__ with params
-            cls.__init__ = new_init(cls, cls.__init__)
-        else:
-            # create new instance
-            cls.__instances[channel] = object.__new__(cls)
-
-        return cls.__instances[channel]
-
-    @classmethod
-    def get(cls, value):
-        return [inst for inst in cls.instances if inst.channel == value]
 
     @property
     def channel(self):
@@ -70,17 +45,36 @@ class Stage:
 
 
 class Sequencer:
+    """
+    Stage class for available channels 1-16
+    attributes:
+      - store used stages
+      - switch between stages
+    """
+
     stages = {}
 
     def __init__(self, *args, **kwargs):
-        self.channel = 1
+        self.port = 1
+        self.max_stages = 4
+        self.stage = None
 
-    def get_stage_or_create(self, channel):
-        current_stage = self.stages.get(channel, None)
+    def get_stage_or_create(self, port):
+        current_stage = self.stages.get(port, None)
         if not current_stage:
-            current_stage = Stage(channel)
-            self.stages[channel] = current_stage
+            current_stage = Stage(port)
+            self.stages[port] = current_stage
+            self.stage = current_stage
         return current_stage
+
+    def get_stage(self):
+        return self.stage
+
+    def save_stage(self):
+        self.stages[self.port] = self.stage
+
+    def clean_stage(self):
+        self.stages[self.port] = Stage(self.port)
 
 
 # seq = Sequencer()

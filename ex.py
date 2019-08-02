@@ -4,11 +4,10 @@ import padKontrol as pk
 import rtmidi
 from rtmidi.midiutil import open_midioutput, open_midiinput
 import asyncio
-
-from itertools import repeat
+import pkconstants as const
 import time
 
-from timer import Timer
+# from async_timer import Timer
 
 OUTPUT_MIDI_PORT = 2
 
@@ -27,6 +26,11 @@ def send_sysex(sysex):
     midi_out.send_message(sysex)
 
 
+async def send_sysex_async(sysex):
+    await asyncio.sleep(0)
+    midi_out.send_message(sysex)
+
+
 # GLOBALS
 sequence = True
 active_pads = {}
@@ -34,7 +38,7 @@ active_pads = {}
 
 class PadKontrolPrint(pk.PadKontrolInput):
 
-    main_clock = 100
+    main_clock = 120  # BPM
 
     def on_pad_down(self, pad, velocity):
         global active_pads
@@ -52,13 +56,13 @@ class PadKontrolPrint(pk.PadKontrolInput):
         print("pad #%d up" % pad)
 
     def on_button_down(self, button):
-        if button == pk.BUTTON_FLAM:
+        if button == const.BUTTON_FLAM:
             print("flam button down")
         else:
             print("button #%d down" % button)
 
     def on_button_up(self, button):
-        if button == pk.BUTTON_MESSAGE:
+        if button == const.BUTTON_MESSAGE:
             print("message button up")
         else:
             global sequence
@@ -89,14 +93,114 @@ class PadKontrolPrint(pk.PadKontrolInput):
         print("x/y pad (x = %d, y = %d)" % (x, y))
 
 
-send_sysex(pk.SYSEX_NATIVE_MODE_OFF)
-
+send_sysex(const.SYSEX_NATIVE_MODE_OFF)
 input("Press enter to enable native mode.")
 
-send_sysex(pk.SYSEX_NATIVE_MODE_ON)  # must be sent first
-send_sysex(pk.SYSEX_NATIVE_MODE_ENABLE_OUTPUT)
-send_sysex(pk.SYSEX_NATIVE_MODE_INIT)  # must be sent after SYSEX_NATIVE_MODE_ON
-send_sysex(pk.SYSEX_NATIVE_MODE_TEST)  # displays 'YES' on the LED
+send_sysex(const.SYSEX_NATIVE_MODE_ON)  # must be sent first
+send_sysex(const.SYSEX_NATIVE_MODE_ENABLE_OUTPUT)
+send_sysex(const.SYSEX_NATIVE_MODE_INIT)  # must be sent after SYSEX_NATIVE_MODE_ON
+send_sysex(const.SYSEX_NATIVE_MODE_TEST)  # displays 'YES' on the LED
+
+input(
+    "Press enter to demonstrate input handling (then enter again to exit this example)."
+)
+
+midi_in, _ = open_midiinput(
+    INPUT_MIDI_PORT,
+    api=rtmidi.API_WINDOWS_MM,
+    client_name="padkontrol",
+    port_name="MIDI In",
+)
+
+pk_print = PadKontrolPrint()
+
+
+def midi_in_callback(message, data):
+    sysex_buffer = []
+    for byte in message[0]:
+        sysex_buffer.append(byte)
+
+        if byte == 0xF7:
+            pk_print.process_sysex(sysex_buffer)
+            del sysex_buffer[:]  # empty list
+
+
+midi_in.ignore_types(False, False, False)
+midi_in.set_callback(midi_in_callback)
+
+
+midiout = rtmidi.MidiOut()
+available_ports = midiout.get_ports()
+
+if available_ports:
+    midiout.open_port(5)
+else:
+    midiout.open_virtual_port("My virtual output")
+
+
+async def send_midi():
+    midiout.send_message([0x90, 60, 112])
+    await asyncio.sleep(0.1)
+    midiout.send_message([0x80, 60, 0])
+
+
+async def sequence(steps=16):
+    while sequence:
+        stime = time.perf_counter()
+        for x in range(steps):
+            active = active_pads.get(x)
+            flash = send_sysex_async(pk.light_flash(x, 0.05))
+
+            time_task = asyncio.create_task(
+                asyncio.sleep(60 / pk_print.main_clock /4)
+            )
+            if active:
+                send_task = asyncio.create_task(send_midi())
+                await send_task
+            await flash
+            await time_task
+
+            # print(f"beat {x} ", time.perf_counter() - stime)
+
+
+async def get_midi_in():
+    x = midi_in.set_callback(midi_in_callback)
+    return x
+
+
+async def main():
+    count = loop.create_task(sequence())
+    buffer = loop.create_task(get_midi_in())
+    await asyncio.wait([count, buffer])
+    return count, buffer
+
+
+loop = asyncio.get_event_loop()
+
+try:
+
+    # loop.run_until_complete(start_native())
+    loop.run_until_complete(main())
+except Exception as e:
+    loop.close()
+
+finally:
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    loop.close()
+
+    input("Press enter to exit")
+
+    send_sysex(const.SYSEX_NATIVE_MODE_OFF)
+
+    midi_in.close_port()
+    midi_out.close_port()
+    del midiout
+
+
+# todo
+# restart sequence
+# multi stages - channels
+
 
 # input("Press enter to display blinking numbers.")
 
@@ -151,92 +255,3 @@ send_sysex(pk.SYSEX_NATIVE_MODE_TEST)  # displays 'YES' on the LED
 #     )
 # )
 
-
-input(
-    "Press enter to demonstrate input handling (then enter again to exit this example)."
-)
-
-midi_in, _ = open_midiinput(
-    INPUT_MIDI_PORT,
-    api=rtmidi.API_WINDOWS_MM,
-    client_name="padkontrol",
-    port_name="MIDI In",
-)
-
-pk_print = PadKontrolPrint()
-
-midiout = rtmidi.MidiOut()
-available_ports = midiout.get_ports()
-
-if available_ports:
-    midiout.open_port(5)
-else:
-    midiout.open_virtual_port("My virtual output")
-
-
-
-async def sequence(steps=16):
-    while sequence:
-        for x in range(steps):
-            active = active_pads.get(x)
-            if active:
-                midiout.send_message([0x90, 60, 112])
-                await asyncio.sleep(0.05)
-                midiout.send_message([0x80, 60, 0])
-            send_sysex(pk.light_flash(x, 0.05))
-            time.sleep(60 / pk_print.main_clock / 4)
-
-
-# async def seq():
-#     await sequence(clock=pk_print.main_clock)
-
-
-# asyncio.run(seq())
-
-
-def midi_in_callback(message, data):
-    sysex_buffer = []
-    for byte in message[0]:
-        sysex_buffer.append(byte)
-
-        if byte == 0xF7:
-            pk_print.process_sysex(sysex_buffer)
-            del sysex_buffer[:]  # empty list
-
-
-midi_in.ignore_types(False, False, False)
-midi_in.set_callback(midi_in_callback)
-
-
-async def get_midi_in():
-    x = midi_in.set_callback(midi_in_callback)
-    return x
-
-
-async def main():
-    count = loop.create_task(sequence())
-    buffer = loop.create_task(get_midi_in())
-    await asyncio.wait([count, buffer])
-    return count, buffer
-
-
-# loop = asyncio.get_event_loop()
-# c, b = loop.run_until_complete(main())
-# loop.close()
-asyncio.run(main())
-
-try:
-    input("Press enter to exit")
-except Exception as e:
-    pass
-finally:
-    send_sysex(pk.SYSEX_NATIVE_MODE_OFF)
-
-    del midiout
-    midi_in.close_port()
-    midi_out.close_port()
-
-
-# todo
-# restart sequence
-# multi stages - channels

@@ -1,4 +1,3 @@
-
 # button constants
 BUTTON_SCENE = 0x10
 BUTTON_MESSAGE = 0x11
@@ -21,11 +20,27 @@ BUTTON_FLAM = 0x21
 BUTTON_HOLD = 0x22
 BUTTON_PAD = 0X30
 
+
+# knobs
+KNOB_1 = 0x00
+KNOB_2 = 0x01
+
+ROTARY_KNOB = 0x43
+# send values
+ROTARY_KNOB_RIGHT = 1
+ROTARY_KNOB_LEFT = 127
+
+ALL_PADS = list(range(16))
+ALL_BUTTONS = [x for x in range(16, 35)] 
+ALL_BUTTONS_AND_PADS = ALL_BUTTONS + [48]  # button pads #48
+
 # light state constants
 LIGHT_STATE_OFF = 0x00
 LIGHT_STATE_ON = 0x20
 LIGHT_STATE_ONESHOT = 0x40
 LIGHT_STATE_BLINK = 0x60
+
+
 
 # LED state constants
 LED_STATE_ON = 0x00

@@ -2,6 +2,7 @@ import math
 import pkconstants as const
 
 
+
 def string_to_sysex(string):
     """Convert a string to the type required by the PadKontrol.
 
@@ -137,6 +138,8 @@ class PadKontrolInput:
                 self.on_rotary_right()
             else:
                 self.on_rotary_left()
+            self.on_rotary(third)
+
         # x/y pad
         elif first == 0x4B:
             self.on_x_y(second, third)
@@ -169,4 +172,7 @@ class PadKontrolInput:
         pass
 
     def on_x_y(self, x, y):
+        pass
+
+    def on_rotary(self, val):
         pass

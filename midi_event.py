@@ -1,5 +1,4 @@
-import time
-import pkconstants as const
+from collections import namedtuple
 
 
 class MidiEvent(object):
@@ -36,18 +35,17 @@ class MidiEvent(object):
         return self.tick >= other.tick
 
 
-from collections import namedtuple
-
-
 class SysexEvent(namedtuple("Sysex", ["type", "control", "state", "data"])):
-    """
-    Container for SysEx messages.
-    Four item named touple with optional data argument.
+    """Container for precessed sysEx messages from PK device.
+
     Arguments:
-      type: (string) - group representation of controller - button/knob/pad,
-      control - (int) - controller`s hex/int description,
-      state - (int/string) for buttons/pads: pressed or released,
-      data(optional) - (int/tuple) - transmitted value/s.
+        type {string} -- group representation of controller (button / knob / pad),
+        control {int} -- parameter description,
+        state {int/string} -- event type (for buttons/pads: pressed or released , knobs: 1),
+        data {int/tuple} (optional) -- transmitted value/s.
+
+    Returns:
+        namedtuple object
     """
 
     __slots__ = ()

@@ -1,6 +1,74 @@
 import math
-import pkconstants as const
 
+# button constants
+BUTTON_SCENE = 0x10
+BUTTON_MESSAGE = 0x11
+BUTTON_SETTING = 0x12
+BUTTON_NOTE_CC = 0x13
+BUTTON_MIDI_CH = 0x14
+BUTTON_SW_TYPE = 0x15
+BUTTON_REL_VAL = 0x16
+BUTTON_VELOCITY = 0x17
+BUTTON_PORT = 0x18
+BUTTON_FIXED_VELOCITY = 0x19
+BUTTON_PROG_CHANGE = 0x1A
+BUTTON_X = 0x1B
+BUTTON_Y = 0x1C
+BUTTON_KNOB_1_ASSIGN = 0x1D
+BUTTON_KNOB_2_ASSIGN = 0x1E
+BUTTON_PEDAL = 0x1F
+BUTTON_ROLL = 0x20
+BUTTON_FLAM = 0x21
+BUTTON_HOLD = 0x22
+BUTTON_PAD = 0X30
+
+# knobs
+KNOB_1 = 0x00
+KNOB_2 = 0x01
+
+ROTARY_KNOB = 0x43
+# send values
+ROTARY_KNOB_RIGHT = 1
+ROTARY_KNOB_LEFT = 127
+
+ALL_PADS = list(range(16))
+ALL_BUTTONS = [x for x in range(16, 35)] 
+ALL_BUTTONS_AND_PADS = ALL_BUTTONS + [48]  # button pads #48
+
+# light state constants
+LIGHT_STATE_OFF = 0x00
+LIGHT_STATE_ON = 0x20
+LIGHT_STATE_ONESHOT = 0x40
+LIGHT_STATE_BLINK = 0x60
+
+# LED state constants
+LED_STATE_ON = 0x00
+LED_STATE_BLINK = 0x01
+
+# SYSEX constants
+_SYSEX_COMMON = [0xF0, 0x42, 0x40, 0x6E, 0x08]
+SYSEX_NATIVE_MODE_ON = _SYSEX_COMMON + [0x00, 0x00, 0x01, 0xF7]
+SYSEX_NATIVE_MODE_ENABLE_OUTPUT = _SYSEX_COMMON + [
+    0x3F, 0x2A, 0x00, 0x00, 0x05, 0x05, 0x05, 0x7F, 0x7E, 0x7F, 0x7F, 0x03,
+    0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 
+    0x0A, 0x0B, 0x0C, 0x0d, 0x0E, 0x0F, 0x10, 0xF7
+    ]
+SYSEX_NATIVE_MODE_INIT = _SYSEX_COMMON + [
+    0xF0, 0x42, 0x40, 0x6E, 0x08, 0x3F, 0x0A, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x29, 0x29, 0x29, 0xF7
+    ]
+
+# displays YES on LED if native mode is enabled properly
+SYSEX_NATIVE_MODE_TEST = _SYSEX_COMMON + [0x22, 0x04, 0x00, 0x59, 0x45, 0x53, 0xF7]
+
+SYSEX_NATIVE_MODE_OFF = _SYSEX_COMMON + [0x00, 0x00, 0x00, 0xF7]
+
+
+# midi constants
+NOTE_ON = "note_on"
+NOTE_OFF = "note_off"
 
 
 def string_to_sysex(string):
@@ -56,7 +124,7 @@ def light_group(led, lights):
             remainder = light % 7
             group[group_index] += int(math.pow(2, remainder))
 
-    return const._SYSEX_COMMON + [0x3F, 0x0A, 0x01] + group + [0x00] + led + [0xF7]
+    return _SYSEX_COMMON + [0x3F, 0x0A, 0x01] + group + [0x00] + led + [0xF7]
 
 
 def light(button_or_pad, light_state):
@@ -67,11 +135,11 @@ def light(button_or_pad, light_state):
     light_state -- a light state constant or True (on) or False (off).
     """
     if light_state is True:
-        light_state = const.LIGHT_STATE_ON
+        light_state = LIGHT_STATE_ON
     elif light_state is False:
-        light_state = const.LIGHT_STATE_OFF
+        light_state = LIGHT_STATE_OFF
 
-    return const._SYSEX_COMMON + [0x01, button_or_pad, light_state, 0xF7]
+    return _SYSEX_COMMON + [0x01, button_or_pad, light_state, 0xF7]
 
 
 def light_flash(button_or_pad, duration):
@@ -81,12 +149,12 @@ def light_flash(button_or_pad, duration):
 
     duration -- a number between 0 (9ms) and 1.0 (279ms).
     """
-    speed = const.LIGHT_STATE_ONESHOT + int(30 * duration)
+    speed = LIGHT_STATE_ONESHOT + int(30 * duration)
 
     return light(button_or_pad, speed)
 
 
-def led(led, led_state=const.LED_STATE_ON):
+def led(led, led_state=LED_STATE_ON):
     """Set the LED display.
 
     led -- either a string or a list returned from string_to_sysex.
@@ -95,7 +163,7 @@ def led(led, led_state=const.LED_STATE_ON):
     """
     led = ensure_sysex(led)
 
-    return const._SYSEX_COMMON + [0x22, 0x04, led_state] + led + [0xF7]
+    return _SYSEX_COMMON + [0x22, 0x04, led_state] + led + [0xF7]
 
 
 class PadKontrolInput:

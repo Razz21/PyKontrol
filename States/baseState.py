@@ -3,94 +3,62 @@ import mido
 import time
 import operator
 from functools import wraps
+import midi_ports as mp
 
 
 class StateBase:
     """Base object for concrete configuration states.
 
     Global variables:
+        state_name -- state specyfic name displayed on led.
         _KNOBS -- knobs sysEx description.
         _RESERVED_CONTROLLERS -- controllers for global actions.
         _context -- context object reference.
-        _name -- state specyfic name displayed on led.
         _GLOBAL_COMBINATIONS -- global hotkeys combinations dictionary:
             key: controls combination, value: called function name (string).
     """
 
+    state_name = "base"
     _KNOBS = [pk.ROTARY_KNOB, pk.KNOB_1, pk.KNOB_2]
     _RESERVED_CONTROLLERS = [pk.BUTTON_KNOB_1_ASSIGN, pk.BUTTON_KNOB_2_ASSIGN]
     _context = None
-    _name = "base"
     _GLOBAL_COMBINATIONS = {
-        frozenset([pk.BUTTON_SETTING, pk.ROTARY_KNOB]): "hotkey_method"
+        frozenset([pk.BUTTON_SETTING, pk.ROTARY_KNOB]): "change_state"
     }
 
     def __init__(self):
         self.hotkeys = set()
-        # self.
         self._LOCAL_COMBINATIONS = {}
 
     def __str__(self):
         return self.name
 
-    def hotkey_method(self):
+    def hotkey_method(self, sysEx):
         print("hotkey found!!")
 
-    def translate_to_led(self, msg):
-        """
-        create 3 characters message for PK controller`s led display
-        """
-        if not isinstance(msg, (int, str, float)):
-            msg = self.name
-        return f"{str(msg)[:3]:>3}"
-
-    @property
-    def name(self):
-        return self.translate_to_led(self._name)
-
-    @property
-    def context(self):
-        return self._context
-
-    @context.setter
-    def context(self, context):
-        self._context = context
-
-    def send_sysex(self, sysex):
-        """Generic data send method for context`s PK controller handler
-
-        Arguments:
-            sysex {list} -- sysex data
-        """
-        self._context.send_sysex(sysex)
-
-    def send_midi(self, data):
-        """Generic data send method for context`s host/reciver handler
-        
-        Arguments:
-            data {list} -- midi data
-        """
-        self._context.send_midi(data)
-
     def load_state(self):
-        """Generic initialization method for context object handler
         """
-        self.send_sysex(pk.led(self.name))
-        self._start()
+        Generic initialization method for context object handler
+        """
+        pass
 
-    def change_state(self, data: int) -> None:
+    def change_state(self, sysEx) -> None:
         """Change state trigger for context object
 
         Arguments:
-            data {int} -- direction of state change:
-            1 - next_state, {other} - previous state
+            sysEx message
 
         Returns:
             None -- load new state
         """
-
         self._pause()
-        if data == 1:
+        # todo reset all lights
+        # mp.send_sysex(
+        #     pk.light_group('ABC', dict.fromkeys(pk.ALL_PADS, False))
+        # )
+        mp.group_light_off(pk.ALL_BUTTONS)
+        mp.group_light_off(pk.ALL_PADS)
+        if sysEx.data == 1:
             self._context.next_state()
         else:
             self._context.previous_state()
@@ -103,8 +71,7 @@ class StateBase:
         Arguments:
         sysEx {SysexEvent} -- sysEx message from PK controller
         """
-        if sysEx.control == pk.ROTARY_KNOB:
-            self.change_state(sysEx.data)
+        pass
 
     def catch_combination(self, sysEx):
         """Catch combo or fire default global action for reserved knobs/buttons.
@@ -126,14 +93,14 @@ class StateBase:
             if frozenset(self.hotkeys) in self._GLOBAL_COMBINATIONS:
                 combo_method = self._GLOBAL_COMBINATIONS[frozenset(self.hotkeys)]
                 #  find and call method in class scope
-                operator.attrgetter(combo_method)(self)()
+                operator.attrgetter(combo_method)(self)(sysEx)
+                catched = True
 
-                catched = True
             elif frozenset(self.hotkeys) in self._LOCAL_COMBINATIONS:
-                self._GLOBAL_COMBINATIONS[frozenset(self.hotkeys)]()
+                self._LOCAL_COMBINATIONS[frozenset(self.hotkeys)](sysEx)
                 catched = True
-            # else:
-            #     self.handle_default_action(sysEx)
+            else:
+                self.handle_default_action(sysEx)
         else:
             # remove from hotkeys queue on release
             self.hotkeys.discard(sysEx.control)
@@ -196,7 +163,7 @@ class StateBase:
 
     # ------------------------ state runtime methods --------------------------
 
-    def _start(self):
+    def _start(self, data=None):
         """
         Load configuration specyfic initialization methods.
         Should be used in threading-driven configuration
@@ -204,161 +171,9 @@ class StateBase:
         """
         pass
 
-    def _pause(self):
+    def _pause(self, data=None):
         """
         Handle threading-driven configuration method.
         Should be overriden to stop current configuration`s thread on state change
         """
         pass
-
-    # ------------------------ sysex lights messages --------------------------
-
-    def led(self, msg):
-        self.send_sysex(pk.led(self.translate_to_led(msg)))
-
-    def led_blink(self, msg):
-        self.send_sysex(pk.led(self.translate_to_led(msg), pk.LED_STATE_BLINK))
-
-    def light_on(self, control):
-        self.send_sysex(pk.light(control, pk.LIGHT_STATE_ON))
-
-    def light_off(self, control):
-        self.send_sysex(pk.light(control, pk.LIGHT_STATE_OFF))
-
-    def light_blink(self, control):
-        self.send_sysex(pk.light(control, pk.LIGHT_STATE_BLINK))
-
-    def light_flash(self, control, duration=0.5):
-        self.send_sysex(pk.light_flash(control, duration))
-
-    # ------- decorator functions to handle common light sysex messages -------
-
-    @staticmethod
-    def press_light(func):
-        """sysEx light decorator:
-        Turn on light on button press and turn off on release
-        """
-
-        @wraps(func)
-        def wrapped(self, *args, **kwargs):
-            sysEx = args[0]
-            if sysEx.state in (pk.NOTE_ON, 1):
-                self.light_on(sysEx.control)
-            else:
-                self.light_off(sysEx.control)
-            return func(self, *args, **kwargs)
-
-        return wrapped
-
-    @staticmethod
-    def flash_light(duration=0.3):
-        """sysEx light decorator:
-        Oneshot light on button press
-        
-        Keyword Arguments:
-            duration {float} -- range 0.0-1.0 (9ms - 279ms) (default: {0.3})
-        """
-
-        def wrapper(func):
-            @wraps(func)
-            def wrapped(self, *args, **kwargs):
-                sysEx = args[0]
-                if sysEx.state in (pk.NOTE_ON, 1):
-                    self.light_flash(sysEx.control, duration)
-                return func(self, *args, **kwargs)
-
-            return wrapped
-
-        return wrapper
-
-    @staticmethod
-    def blink_light(func):
-        """sysEx light decorator:
-        Blink light on button press
-
-        Arguments:
-            func {function} -- wrapped function
-
-        Returns:
-            function -- wrapped function
-        """
-
-        @wraps(func)
-        def wrapped(self, *args, **kwargs):
-            sysEx = args[0]
-            if sysEx.state in (pk.NOTE_ON, 1):
-                self.light_blink(sysEx.control)
-            return func(self, *args, **kwargs)
-
-        return wrapped
-
-    @staticmethod
-    def hold_light(func):
-        """sysEx light decorator:
-        Turn on light on button press and hold on release
-
-        Arguments:
-            func {function} -- wrapped function
-
-        Returns:
-            function -- wrapped function
-        """
-
-        @wraps(func)
-        def wrapped(self, *args, **kwargs):
-            sysEx = args[0]
-            if sysEx.state in (pk.NOTE_ON, 1):
-                self.light_on(sysEx.control)
-            return func(self, *args, **kwargs)
-
-        return wrapped
-
-    @staticmethod
-    def release_light(func):
-        """sysEx light decorator:
-        Turn off constant light on button press
-
-        Arguments:
-            func {function} -- wrapped function
-        
-        Returns:
-            function -- wrapped function
-        """
-
-        @wraps(func)
-        def wrapped(self, *args, **kwargs):
-            sysEx = args[0]
-            if sysEx.state in (pk.NOTE_ON, 1):
-                self.light_off(sysEx.control)
-            return func(self, *args, **kwargs)
-
-        return wrapped
-
-    @staticmethod
-    def action_on_press(reset_led=False, led_msg=None):
-        """sysEx event decorator:
-        Call function only on button / pad press event
-        and ignore release sysEx messages from same controller.
-
-        Keyword Arguments:
-            reset_led {bool} -- restet message on controller release (default: {False})
-            led_msg {string} -- displayed message (default: {None})
-
-        Returns:
-            function -- wrapped function
-        """
-
-        def wrapper(func):
-            @wraps(func)
-            def wrapped(self, *args, **kwargs):
-                sysEx = args[0]
-                if sysEx.state in (pk.NOTE_ON, 1):
-                    return func(self, *args, **kwargs)
-                else:
-                    if reset_led:
-                        msg = self.translate_to_led(led_msg)
-                        self.led(msg)
-
-            return wrapped
-
-        return wrapper

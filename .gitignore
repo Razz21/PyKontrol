@@ -15,12 +15,10 @@ coverage.xml
 *.cover
 .hypothesis/
 
-
-todos.py
-
 Examples/
 Pipfile
 Pipfile.lock
 *.bak
 .pytest_cache
-tests/
+to_tests/
+file.mid

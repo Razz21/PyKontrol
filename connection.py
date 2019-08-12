@@ -21,68 +21,13 @@ logging.basicConfig(
 )
 
 
-class PadKontrolHandler:
-    def __init__(self, midi_in, midi_out, pk_print):
-        self.midi_in = midi_in
-        self.midi_out = midi_out
-        self.pk_print = pk_print
-
-    def send_sysex(self, sysex):
-        sysex = mido.parse(sysex)
-        self.midi_out.send(sysex)
-        logging.info(sysex)
-
-    def _midi_in_callback(self, message):
-        logging.info(message)
-        sysex_buffer = []
-        for byte in message.bytes():
-            sysex_buffer.append(byte)
-            if byte == 0xF7:
-                self.pk_print.process_sysex(sysex_buffer)
-                del sysex_buffer[:]  # empty list
-
-    def _initialize_connection(self):
-        self.midi_in._rt.ignore_types(True, True, True)
-        # todo initialization logs
-        self.send_sysex(pk.SYSEX_NATIVE_MODE_OFF)
-        self.send_sysex(pk.SYSEX_NATIVE_MODE_ON)
-        self.send_sysex(pk.SYSEX_NATIVE_MODE_ENABLE_OUTPUT)
-        self.send_sysex(pk.SYSEX_NATIVE_MODE_INIT)
-        self.send_sysex(pk.SYSEX_NATIVE_MODE_TEST)
-        # these sysex messages are device specyfic and input port must ignore them
-        # wait some time to avoid conflicts  between I/O ports
-        time.sleep(0.5)
-        self.midi_in._rt.ignore_types(False, False, False)  # enable sysex monitor
-        self.midi_in.callback = self._midi_in_callback
-        logging.info("connection initialized!")
-
-    def _close_connection(self):
-        self.send_sysex(pk.SYSEX_NATIVE_MODE_OFF)
-
-
-class HostKontrolHandler:
-    def __init__(self, midi_out, midi_in=None):
-        self.midi_in = midi_in
-        self.midi_out = midi_out
-
-    def send_midi(self, data):
-        if not isinstance(data, mido.Message):
-            data = mido.Message(**data)
-        self.midi_out.send(data)
-
-
 class Context:
     _state = None
-
     _states = deque()
-
-    def __init__(self, pk_handler, host_handler):
-        self._pk_handler = pk_handler
-        self._host_handler = host_handler
 
     def load_state(self):
         self._state = self._states[0]
-        self._state.context = self
+        self._state._context = self
         self._state.load_state()
 
     def next_state(self):
@@ -101,51 +46,29 @@ class Context:
     def notify(self, msg):
         self._state.handle_event(msg)
 
-    def send_sysex(self, sysex):
-        self._pk_handler.send_sysex(sysex)
-
-    def send_midi(self, data):
-        self._host_handler.send_midi(data)
-
-    def _initialize_connection(self):
-        self._pk_handler._initialize_connection()
-        self.load_state()
-
-    def _close_connection(self):
-        self._pk_handler._close_connection()
-
 
 # ------------------------------------------
+def main():
+    pk_print = PadKontrolPrint()
+    
+    # initialize Context object and add states objects
+    c = Context()
+    mp.connect()
 
-midi_out = mp.get_padkontrol_output()
-midi_in = mp.get_padkontrol_input()
-host_midiout = mp._get_midi_out_data()
+    state1 = FreeState()
+    state2 = ReDrumState()
 
-# initialize I/O handler objects
-pk_print = PadKontrolPrint()
-pk_handler = PadKontrolHandler(midi_in=midi_in, midi_out=midi_out, pk_print=pk_print)
-host_handler = HostKontrolHandler(host_midiout)
+    c.add_state(state1, state2)
 
-# crete states
-state1 = FreeState()
-state2 = ReDrumState()
+    # register Context as main listener
+    pk_print.register(c)
 
-# initialize Context object and add states objects
-c = Context(pk_handler, host_handler)
-c.add_state(state1, state2)
+    input("Press enter to initialize connection")
+    mp.start_native(pk_print.callback)
+    c.load_state()
+    input("Press enter to exit")
 
-# register Context as main listener
-pk_print.register(c)
+    mp.close_native()
 
-input("Press enter to initialize connection")
-# create connection with device
-c._initialize_connection()
 
-# ready to fun
-input("Press enter to exit")
-
-# c.close_connection()
-c._close_connection()
-midi_in.close()
-midi_out.close()
-host_midiout.close()
+main()

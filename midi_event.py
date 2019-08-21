@@ -41,8 +41,8 @@ class SysexEvent(namedtuple("Sysex", ["type", "control", "state", "data"])):
     Arguments:
         type {string} -- group representation of controller (button / knob / pad),
         control {int} -- parameter description,
-        state {int/string} -- event type (for buttons/pads: pressed or released , knobs: 1),
-        data {int/tuple} (optional) -- transmitted value/s.
+        state {int/string} -- event type (for buttons/pads: pressed or released) (default: {1}),
+        data {int/tuple} (optional) -- transmitted value/s (default: {None}).
 
     Returns:
         namedtuple object

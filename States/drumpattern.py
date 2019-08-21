@@ -2,20 +2,22 @@ import midi_ports as mp
 import padKontrol as pk
 from collections import deque
 from decorators import *
+from itertools import count
+from random import gauss
 
 
 class Instrument:
-    """
-    Instrument class for sequencer
-    Attributes:
-      - unique sequence length
-      - specify independent steps
-      - convert to string drumpattern
-    Future:
-      - read / save midi files #todo
+    """Instrument class for sequencer
+
+    Arguments:
+        note: midi pitch value
+        strokes: (optional) velocities of each stroke, default [None]*16
+    Raises:
+        TypeError: Strokes must be list/tuple with values None or 0-127
+
     """
 
-    __slots__ = ("note", "strokes", "position", "max_length")
+    id_iter = count(1)  # start with 1
 
     def __init__(self, note, **kwargs):
         self.note = note  # triggered note # TODO unique value for channel
@@ -24,6 +26,7 @@ class Instrument:
         )  # initialize grid with 0 velocity per step
         self._position = 0
         self.max_length = 16
+        self.id = next(self.id_iter)
 
     @property
     def strokes(self):
@@ -45,69 +48,86 @@ class Instrument:
         return self
 
     def __next__(self):
-        stroke = self.strokes[self._position]
+        """Infinite cycle iterator for strokes
+
+        Returns:
+            tuple  -- instrument note and current stroke velocity
+        """
+        velocity = self.strokes[self._position]
         self._position += 1
         if self._position >= len(self.strokes):
             self._position = 0
-        return (self.note, stroke)
+        return (self.note, velocity)
 
     def reset(self):
+        """Reset current stroke iterator position
+        """
         self._position = 0
 
     def add_step(self, step: int, velocity: int) -> None:
-        step = max(0, min(step, len(self._strokes) - 1))
-        velocity = max(0, min(velocity, 127))
-        self._strokes[step] = velocity
+        """Change velocity of step
+
+        Arguments:
+            step {int} -- index of existing step
+            velocity {int} -- new velocity value
+
+        Returns:
+            None
+        """
+        if 0 <= step < len(self.strokes):
+            velocity = max(0, min(velocity, 127))
+            self.strokes[stroke] = velocity
 
     def remove_step(self, step: int) -> None:
+        """Remove step velocity value
+
+        Arguments:
+            step {int} -- index of existing step
+
+        Returns:
+            None
+        """
         step = max(0, min(step, len(self._strokes) - 1))
-        self._strokes[step] = 0  # not throw error
+        self._strokes[step] = 0
 
     def add_length(self):
+        """Increase strokes lengts (max-16)
+        """
         if len(self.strokes) < 16:
             self.strokes += [0]
 
     def remove_length(self):
+        """Increase strokes lengts (min-1)
+        """
         if len(self.strokes) > 1:
             del self.strokes[:-1]
-
-    def change_velocity(self, stroke: int, val: int):
-        if 0 <= stroke < len(self.strokes):
-            val = max(0, min(val, 127))
-            self.strokes[stroke] = val
 
 
 class Drumpattern(object):
     """Container and iterator for a multi-track step sequence."""
 
-    _curr_instrument_idx = 1
-
-    def __init__(self, kit=0, humanize=0):
+    def __init__(self, humanize=0):
         self.instruments = deque()
-        self.kit = kit
         self.humanize = humanize
         self.steps = 16
         self.step = 0
         self._notes = {}
         self.curent_instrument = None
 
-    def __len__(self):
-        return len(self.instruments)
-
     def reset(self):
         self.step = 0
         for instrument in self.instruments:
-            instrument["current_step"] = 0
+            instrument.reset()
 
     def initialize(self):
         for n in range(4):
-            i = {"note": 36 + n, "strokes": [0] * 16, "current_step": 0}
+            i = Instrument(note=36 + n)
             self.instruments.append(i)
 
-    def playstep(self, channel=9):
-        for idx, inst in enumerate(self.instruments):
-            note, strokes, current_step = inst.values()
-            velocity = strokes[current_step]
+    def playstep(self, bpm, channel=1):
+        for inst in self.instruments:
+            note, velocity = next(inst)
+
             if velocity is not None:
                 if self._notes.get(note):
                     mp.send_midi(
@@ -117,7 +137,6 @@ class Drumpattern(object):
                 if velocity > 0:
                     if self.humanize:
                         velocity += int(round(gauss(0, velocity * self.humanize)))
-
                     mp.send_midi(
                         dict(
                             type="note_on",
@@ -126,45 +145,43 @@ class Drumpattern(object):
                             velocity=max(1, velocity),
                         )
                     )
-
                     self._notes[note] = velocity
-
-            current_step += 1
-            if current_step >= len(strokes):
-                current_step = 0
-
-            self.instruments[idx]["current_step"] = current_step
 
         self.step += 1
         if self.step >= self.steps:
             self.step = 0
-        self.current_instrument_seq()
-
-    def change_curr_idx(self, val):
-        self._curr_instrument_idx += val
-        if self._curr_instrument_idx > len(self.instruments):
-            self._curr_instrument_idx = 1
-
-        elif self._curr_instrument_idx < 1:
-            self._curr_instrument_idx = len(self.instruments)
+        self.current_instrument_seq(bpm)
 
     @press_light
     @action_on_press(False)
     def next_instrument(self, sysEx):
+        """switch active instrument to next object
+
+        Arguments:
+            sysEx message
+        """
         self.instruments.rotate(-1)
-        self.change_curr_idx(1)
         self.load_current_instrument()
 
     @press_light
     @action_on_press(False)
     def prev_instrument(self, sysEx):
+        """switch active instrument to previous object
+
+        Arguments:
+            sysEx message
+        """
         self.instruments.rotate(1)
-        self.change_curr_idx(-1)
         self.load_current_instrument()
 
     @action_on_press(False)
     def handle_step(self, sysEx):
-        strokes = self.curent_instrument["strokes"]
+        """light on active steps
+
+        Arguments:
+            sysEx message
+        """
+        strokes = self.curent_instrument.strokes
         if sysEx.control < len(strokes):
             if strokes[sysEx.control]:
                 strokes[sysEx.control] = 0
@@ -176,27 +193,26 @@ class Drumpattern(object):
             mp.light_flash(sysEx.control, 0.1)
 
     def load_current_instrument(self):
+        """load first instrument from deque
+        """
         self.curent_instrument = self.instruments[0]
         inst = self.curent_instrument
-        strokes = inst["strokes"]
-        # print(strokes)
+        strokes = inst.strokes
+
         mp.group_light_off(pk.ALL_PADS)
         for idx, s in enumerate(strokes):
             if s:
                 mp.light_on(idx)
 
-        mp.led(self._curr_instrument_idx)
+        mp.led(inst.id)
 
-    def current_instrument_seq(self):
+    def current_instrument_seq(self, bpm):
+        """flash pad on active step
+
+        Arguments:
+            bpm {int} -- sequence tempo
+        """
         inst = self.curent_instrument
-        note, strokes, current_step = inst.values()
-        # print(current_step, strokes[current_step])
-        # if current_step >= len(strokes):
-        #     current_step = 0
-        mp.light_flash(current_step, 0.1)
-
-    # def strokes_to_active(self, strokes: list) -> dict:
-    #     todo sysex group messages
-    #     # create dict of active pads for padkontrol module
-    #     res = {k: True if strokes[k] else False for k in range(len(strokes))}
-    #     return res
+        tick = bpm / 960  # 16th grid
+        val = (tick - 9) / 270
+        mp.light_flash(inst._position, 0.125)

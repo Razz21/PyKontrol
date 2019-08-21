@@ -50,7 +50,7 @@ class Context:
 # ------------------------------------------
 def main():
     pk_print = PadKontrolPrint()
-    
+
     # initialize Context object and add states objects
     c = Context()
     mp.connect()

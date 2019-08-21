@@ -20,5 +20,5 @@ Pipfile
 Pipfile.lock
 *.bak
 .pytest_cache
-to_tests/
+to_tests
 file.mid

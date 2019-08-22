@@ -10,7 +10,7 @@ from rtmidi.midiconstants import (
     PROGRAM_CHANGE,
 )
 
-from .baseState import StateBase
+from .baseState import State
 import time
 from .drumpattern import Drumpattern
 import threading
@@ -18,13 +18,7 @@ from decorators import *
 import midi_ports as mp
 
 
-def next_time(t0, dt):
-    while 1:
-        t0 += dt
-        yield t0
-
-
-class ReDrumState(StateBase, threading.Thread):
+class ReDrumState(State, threading.Thread):
     state_name = "rEd"
 
     def __init__(self):

@@ -1,4 +1,4 @@
-from States.baseState import StateBase
+from States.baseState import State
 import padKontrol as pk
 import time
 import utils
@@ -18,7 +18,7 @@ import midi_ports as mp
 from decorators import *
 
 
-class FreeState(StateBase):
+class FreeState(State):
     _scales = deque(
         [
             ("Chromatic", [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], []),
@@ -37,11 +37,11 @@ class FreeState(StateBase):
             ),
             ("NAtural minor", [2, 1, 2, 2, 1, 2, 2], []),
             ("HArmonic minor", [2, 1, 2, 2, 1, 3, 1], []),
-            ("Usr", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], []),  # create own scale
+            ("Usr", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], []),  # TODO create own scale
         ]
     )
 
-    state_name = "s.1"
+    state_name = "frE"
     ordered = [
         12,
         13,
@@ -128,7 +128,9 @@ class FreeState(StateBase):
         if self.mode:
             name = modes[self.mode]
         self.led_text = name
-        mp.led(name)
+        mp.led('@#2', pk.LED_STATE_BLINK)
+        # mp.led_reset()
+
 
     def change_mode(self, sysEx):
         """

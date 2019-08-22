@@ -22,11 +22,36 @@ BUTTON_FLAM = 0x21
 BUTTON_HOLD = 0x22
 BUTTON_PAD = 0x30
 
-# LED DISPLAY
+# 7 SEGMENT LED DISPLAY
+# https://en.wikipedia.org/wiki/Seven-segment_display
+# individual segments
 
-FIRST_DOT = 0x3F  # 38-3F
-SECOND_DOT = 0x37  # 30-37
-THIRD_DOT = 0x2F  # 28 -2F
+FIRST_A = 0x38  # 56 Decimal
+FIRST_B = 0x39
+FIRST_C = 0x3A
+FIRST_D = 0x3B
+FIRST_E = 0x3C
+FIRST_F = 0x3D
+FIRST_G = 0x3E
+FIRST_DP = 0x3F  # 38-3F
+
+SEC_A = 0x30  # 48 Decimal
+SEC_B = 0x31
+SEC_C = 0x32
+SEC_D = 0x33
+SEC_E = 0x34
+SEC_F = 0x35
+SEC_G = 0x36
+SEC_DP = 0x37  # 30-37
+
+THIRD_A = 0x28  # 40 Decimal
+THIRD_B = 0x29
+THIRD_C = 0x2A
+THIRD_D = 0x2B
+THIRD_E = 0x2C
+THIRD_F = 0x2D
+THIRD_G = 0x2E
+THIRD_DP = 0x2F  # 28 -2F
 
 # knobs
 KNOB_1 = 0x00

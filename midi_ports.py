@@ -59,8 +59,8 @@ def start_native(callback):
     send_sysex(pk.SYSEX_NATIVE_MODE_ENABLE_OUTPUT)
     send_sysex(pk.SYSEX_NATIVE_MODE_INIT)
     send_sysex(pk.SYSEX_NATIVE_MODE_TEST)
-    # these sysex messages are device specyfic and input port must ignore them
-    # wait some time to avoid conflicts between I/O ports
+    # these sysex messages are device specyfic and input port must ignore them.
+    # wait some time to avoid conflicts between I/O midi ports
     time.sleep(0.5)
     set_callback(callback)
 
@@ -97,15 +97,65 @@ def send_midi(data):
         _midi_out_data.send(data)
 
 
+def ascii_to_led(char, pos=0):
+    """translate non supported ascii characters to SysEx message for
+        7 segment led display
+
+    Arguments:
+        char {string} -- ASCII symbol
+        pos {integer} -- led character (1,2 or 3)
+
+    Returns:
+        list -- SysEx symbol representation
+    """
+
+    chars = {"#": [pk.FIRST_A, pk.FIRST_B, pk.FIRST_F, pk.FIRST_G]}
+    symbol = chars.get(char, None)
+    if symbol:
+        # SysEx symbols in reverse order
+        symbol = [x - (8 * pos) for x in symbol]
+    return symbol
+
+
 def translate_to_led(msg):
     """
     create 3 characters message for 7-segment led display
     """
-    return f"{str(msg)[:3]:>3}"
+    s = ""
+    custom = []
+    msg = f"{str(msg)[:3]:>3}"
+    for idx, char in enumerate(msg):
+        c = ascii_to_led(char, idx)
+        if c:
+            custom.append(c)
+            s += " "  # empty space - string must be 3 chars long
+        else:
+            s += char
+    return s, custom
 
 
-def led(msg):
-    send_sysex(pk.led(translate_to_led(msg)))
+def led(msg, led_state=pk.LED_STATE_ON):
+    """Set led message
+
+    Arguments:
+        msg {string} -- message to display (or first 3 characters of string)
+    """
+    msg, custom = translate_to_led(msg)
+    send_sysex(pk.led(msg, led_state))  # send valid characters as string
+    if custom:
+        # unsupported characters must be created segment by segment
+        light_state = pk.LIGHT_STATE_ON
+        if led_state == pk.LED_STATE_BLINK:
+            light_state = pk.LIGHT_STATE_BLINK
+        for char in custom:
+            for c in char:
+                send_sysex(pk.light(c, light_state))
+
+
+def led_reset():
+    """Clear led display
+    """
+    send_sysex(pk.led([0x29, 0x29, 0x29]))
 
 
 def led_blink(msg):

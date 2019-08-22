@@ -6,12 +6,12 @@ from functools import wraps
 import midi_ports as mp
 
 
-class StateBase:
+class State:
     """Base object for concrete configuration states.
 
     Global variables:
         state_name -- state specyfic name displayed on led.
-        _KNOBS -- knobs sysEx description.
+        _KNOBS -- knobs sysEx reference.
         _RESERVED_CONTROLLERS -- controllers for global actions.
         _context -- context object reference.
         _GLOBAL_COMBINATIONS -- global hotkeys combinations dictionary:
@@ -32,9 +32,6 @@ class StateBase:
 
     def __str__(self):
         return self.name
-
-    def hotkey_method(self, sysEx):
-        print("hotkey found!!")
 
     def load_state(self):
         """
@@ -67,7 +64,7 @@ class StateBase:
 
     def handle_default_action(self, sysEx):
         """Handle pre-defined global actions
-        
+
         Arguments:
         sysEx {SysexEvent} -- sysEx message from PK controller
         """

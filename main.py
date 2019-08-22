@@ -13,15 +13,18 @@ import midi_ports as mp
 from States.free import FreeState
 from States.redrum import ReDrumState
 
-log = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s,%(msecs)d %(levelname)s: %(message)s",
-    datefmt="%H:%M:%S",
-)
+# log = logging.getLogger(__name__)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format="%(asctime)s,%(msecs)d %(levelname)s: %(message)s",
+#     datefmt="%H:%M:%S",
+# )
 
 
 class Context:
+    """Store reference to all and active state
+    """
+
     _state = None
     _states = deque()
 

@@ -44,6 +44,7 @@ def get_piano_notes(transpose=12):
     last_note = min(127, bottom_note + 15)  # right upper
     return bottom_note, last_note
 
+
 octaves = ["-"] + list(range(10))  # must return only 1 character
 names = ["C ", "Ch", "d ", "dh", "E ", "F ", "Fh", "G ", "Gh", "A ", "Ah", "b "]
 
@@ -84,6 +85,13 @@ def scale_to_mode(scale, transpose=0):
 def scale_to_pattern(scale):
     # find relative next note pattern from 12 keys scale scheme
     pattern = [t - s for s, t in zip(scale, scale[1:])]
+    return pattern
+
+
+def pattern_to_scale(pattern):
+    # find absolute next note pattern from 8 keys relative scale scheme
+    scale = list(accumulate(pattern))
+    return scale
 
 
 def scale_to_16(scale, mode=0, base=0, length=16):
@@ -108,3 +116,19 @@ def scale_to_16(scale, mode=0, base=0, length=16):
 
     res_acc = list(accumulate(result))
     return res_acc
+
+
+def pad_intervals(parts, duration=128):
+    """split midi 0-127 values range in equal parts
+
+    Arguments:
+        parts {int} -- parts
+
+    Keyword Arguments:
+        duration {int} -- [description] (default: {128})
+
+    Returns:
+        list -- split values
+    """
+    part_duration = duration / (parts + 1)
+    return [int((i + 1) * part_duration) for i in range(parts)]

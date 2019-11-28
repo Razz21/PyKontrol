@@ -16,8 +16,7 @@ coverage.xml
 .hypothesis/
 
 Examples/
-Pipfile
-Pipfile.lock
+
 *.bak
 .pytest_cache
 to_tests

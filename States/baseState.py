@@ -1,8 +1,6 @@
-import padKontrol as pk
-import mido
 import time
 import operator
-from functools import wraps
+import padKontrol as pk
 import midi_ports as mp
 
 

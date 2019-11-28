@@ -1,21 +1,10 @@
-from States.baseState import State
-import padKontrol as pk
 import time
-import utils
 from collections import deque
-from rtmidi.midiconstants import (
-    ALL_SOUND_OFF,
-    BANK_SELECT_LSB,
-    BANK_SELECT_MSB,
-    CHANNEL_VOLUME,
-    CONTROL_CHANGE,
-    NOTE_ON,
-    NOTE_OFF,
-    PROGRAM_CHANGE,
-)
-import string
+from States.baseState import State
+import utils
+import decorators
 import midi_ports as mp
-from decorators import *
+import padKontrol as pk
 
 
 class FreeState(State):
@@ -128,9 +117,7 @@ class FreeState(State):
         if self.mode:
             name = modes[self.mode]
         self.led_text = name
-        mp.led('@#2', pk.LED_STATE_BLINK)
-        # mp.led_reset()
-
+        mp.led(name)
 
     def change_mode(self, sysEx):
         """
@@ -149,7 +136,7 @@ class FreeState(State):
                 self.mode = 0
             self.load_scale()
 
-    @press_light
+    @decorators.press_light
     def play_note(self, sysEx):
         """
         Play notes with pads.
@@ -161,8 +148,8 @@ class FreeState(State):
             dict(type=sysEx.state, channel=self.channel, note=note, velocity=sysEx.data)
         )
 
-    @press_light
-    @action_on_press(True, "led_text")  # reset led on button release
+    @decorators.press_light
+    @decorators.action_on_press(True, "led_text")  # reset led on button release
     def handle_transpose(self, sysEx, steps):
         """
         Transpose base note ± 1 semitone.
@@ -184,8 +171,8 @@ class FreeState(State):
         self.base_note = 36
         self._transpose = 0
 
-    @press_light
-    @action_on_press(True, "led_text")
+    @decorators.press_light
+    @decorators.action_on_press(True, "led_text")
     def show_note(self, sysEx):
         """
         Display current note pitch.

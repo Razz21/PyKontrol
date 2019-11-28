@@ -1,13 +1,6 @@
 import padKontrol as pk
 from rtmidi.midiconstants import (
     ALL_SOUND_OFF,
-    BANK_SELECT_LSB,
-    BANK_SELECT_MSB,
-    CHANNEL_VOLUME,
-    CONTROL_CHANGE,
-    NOTE_ON,
-    NOTE_OFF,
-    PROGRAM_CHANGE,
 )
 
 from .baseState import State

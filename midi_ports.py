@@ -2,11 +2,13 @@ import mido
 import time
 import padKontrol as pk
 
-
+# should be named 'padKONTROL 1 CTRL' or similar.
 PADKONTROL_OUTPUT_PORT = "padKONTROL 1 CTRL 2"
+# should be named 'padKONTROL 1 PORT A' or similar
 PADKONTROL_INPUT_PORT = "padKONTROL 1 PORT A 1"
 
-DATA_MIDI_PORT = "KorgLoopMidi 5"
+# external midi port to send midi messages
+DATA_MIDI_PORT = "KorgLoopMidi 4"
 
 
 _midi_in = None
@@ -31,7 +33,7 @@ def get_padkontrol_output(PADKONTROL_OUTPUT_PORT=PADKONTROL_OUTPUT_PORT):
 def get_midi_out_data(DATA_MIDI_PORT=DATA_MIDI_PORT):
     global _midi_out_data
     if not _midi_out_data:
-        _midi_out_data = mido.open_output(DATA_MIDI_PORT)
+        _midi_out_data = mido.open_output(DATA_MIDI_PORT, autoreset=True)
     return _midi_out_data
 
 
@@ -94,7 +96,7 @@ def send_midi(data):
     global _midi_out_data
     if not isinstance(data, mido.Message):
         data = mido.Message(**data)
-        _midi_out_data.send(data)
+    _midi_out_data.send(data)
 
 
 def ascii_to_led(char, pos=0):
@@ -159,7 +161,7 @@ def led_reset():
 
 
 def led_blink(msg):
-    send_sysex(pk.led(translate_to_led(msg), pk.LED_STATE_BLINK))
+    led(msg, pk.LED_STATE_BLINK)
 
 
 def light_on(control):

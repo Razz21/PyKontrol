@@ -12,6 +12,7 @@ from kontrol_listener import PadKontrolPrint
 import midi_ports as mp
 from States.free import FreeState
 from States.redrum import ReDrumState
+from States.strummer import Strummer
 
 # log = logging.getLogger(__name__)
 # logging.basicConfig(
@@ -60,8 +61,9 @@ def main():
 
     state1 = FreeState()
     state2 = ReDrumState()
+    state3 = Strummer()
 
-    c.add_state(state1, state2)
+    c.add_state(state1, state2, state3)
 
     # register Context as main listener
     pk_print.register(c)
